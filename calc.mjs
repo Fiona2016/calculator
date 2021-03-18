@@ -1,4 +1,23 @@
-function genTree (tokens) {
+/**计算规则相关函数类 */
+const weightMap = {
+  '+': 0,
+  '-': 0,
+  '*': 1,
+  '/': 1
+}
+// */下沉，+=上浮
+/**
+   * 2. 解析tokens，生成ast
+   * @param tokens 
+   * @returns AST
+   * 生成策略：
+   * 维护lastOpr指针 -> 最后一个运算符所在节点
+   * 如遇到新的运算符，与lastOpr比较优先级
+   *  * 如果优先级更高，节点下沉
+   *  * 如果优先级一样，在lastOpr节点的右上方插入
+   *  * 如果优先级更低，需找到最后一个低优运算符指针(本场景较简单，只有两个优先级，acc即为目标指针)，节点上浮
+   */
+ export function genTree (tokens) {
   let lastOpr = null
   return tokens.reduce((acc, cur, index) => {
     if (index === 0) {
@@ -27,7 +46,7 @@ function genTree (tokens) {
           // lastOpr.parent = 
           break
         }
-        case -1: { // 需找到最后一个低优运算符指针，本场景只有两个优先级，找acc即可
+        case -1: { // 需找到最近的一个低优运算符指针，本场景只有两个优先级，可以找acc
           acc = {
             operator: cur,
             left: acc
@@ -36,14 +55,13 @@ function genTree (tokens) {
           break
         }
         case 0: {
-          if (getOperatorLevel(cur) === 0) { // fixme, 应该向上回溯，此处优先级只有0和1，可以确认为acc
+          if (!lastOpr.parent) { // 说明在顶部节点
             acc = {
               operator: cur,
               left: acc
             }
             lastOpr = acc
           } else {
-            // const old = lastOpr
             lastOpr.parent.right = {
               operator: cur,
               left: lastOpr,
@@ -55,34 +73,48 @@ function genTree (tokens) {
       }
     } else { // 如果不是operator，插入右节点
       if (cur == 0 && lastOpr.operator === '/') { // 考虑除以0的情况
-        throw new Error ('can not divide zero')
+        throw new Error ('分母不能为0')
       }
       lastOpr.right = {
         value: cur
       }
     }
-    console.log('====', JSON.stringify(acc, '', 2))
     return acc
   }, {})
 }
-
-function isOperatorExtend (x, y) { // fixme
-  const weightMap = {
-    '+': 0,
-    '-': 0,
-    '*': 1,
-    '/': 1
-  }
-  return weightMap[x] >= weightMap[y]
-}
-
 function isOperator (str) {
   return /[\+\-\*\/]/.test(str)
 }
+function priorityComparison (x, y) {
+  return weightMap[x] - weightMap[y]
+}
 
-function genTokens (str) {
+function calcValue (px, py, rule) {
+  const [x, y] = [Number(px), Number(py)]
+  switch(rule) {
+    case '+': {
+      return x + y
+    }
+    case '-': {
+      return x - y
+    }
+    case '*': {
+      return x * y
+    }
+    case '/': {
+      return x / y
+    }
+  }
+}
+
+/**
+ * 生成tokens
+ * @param str 
+ * @returns 
+ */
+ export function genTokens (str) {
   if (!/^(\d|\s|\+|\-|\*|\/)+$/.test(str)) {
-    throw new Error('invalid string, Please varify your input')
+    throw new Error('请检查输入，只支持数字与四则运算符"+-*/" ')
   }
   const s = str.replace(/\s/g, '')
   let arr = []
@@ -96,13 +128,14 @@ function genTokens (str) {
   }
   return arr
 }
-
-const tokens = ['1', '*', '2', '+', '2', '*', '3', '/', '4', '-', '7']
-const r = genTree(tokens)
-// console.log(JSON.stringify(r, '', 2))
-// console.log(genTree(tokens))
-
-
-//const str = '1 * 23 + 2 * 6'
-//console.log(genTokens(str))
-// genTokens(str)
+/**
+ * 根据ast计算结果
+ * @param {} ast 
+ */
+export function visitor (node) {
+  if (node.operator) {
+    return calcValue(visitor(node.left), visitor(node.right), node.operator)
+  } else {
+    return node.value
+  }
+}
